@@ -42,9 +42,11 @@ jobs:
 
               repo-add /src/public/x86_64/wptoascii.db.tar.gz \
                 /src/public/x86_64/*.pkg.tar.zst
-
-              cp -L /src/public/x86_64/wptoascii.db.tar.gz \
+              rm -f /src/public/x86_64/wptoascii.db
+              cp /src/public/x86_64/wptoascii.db.tar.gz \
                 /src/public/x86_64/wptoascii.db
+
+             
             '
 
       - uses: actions/upload-pages-artifact@v3
