@@ -1,0 +1,63 @@
+name: Build Arch repository
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build package and repository
+        run: |
+          mkdir -p public/x86_64
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            archlinux:base-devel \
+            bash -euc '
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm python python-pillow python-pyqt6 qt6-wayland
+
+              useradd -m builder
+              chown -R builder:builder /src
+
+              runuser -u builder -- makepkg --cleanbuild --noconfirm
+
+              cp /src/*.pkg.tar.zst /src/public/x86_64/
+
+              repo-add /src/public/x86_64/wptoascii.db.tar.gz \
+                /src/public/x86_64/*.pkg.tar.zst
+
+              cp -L /src/public/x86_64/wptoascii.db.tar.gz \
+                /src/public/x86_64/wptoascii.db
+            '
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
