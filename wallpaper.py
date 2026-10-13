@@ -7,10 +7,6 @@ import subprocess
 import sys
 
 
-# ============================================================
-# DEFAULT SETTINGS
-# ============================================================
-
 DEFAULT_CHARS = "@#S%?*+;:,."
 
 QUALITY_PRESETS = {
@@ -21,25 +17,8 @@ QUALITY_PRESETS = {
 }
 
 
-# ============================================================
-# SCREEN DETECTION
-# ============================================================
-
 def get_screen_size():
-    """
-    Detect the active screen resolution.
 
-    Priority:
-      1. Hyprland (hyprctl monitors -j)
-      2. xrandr
-      3. xdpyinfo
-      4. Windows API
-      5. macOS system_profiler
-    """
-
-    # --------------------------------------------------------
-    # Hyprland / Wayland
-    # --------------------------------------------------------
 
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         try:
@@ -53,7 +32,6 @@ def get_screen_size():
             monitors = json.loads(result.stdout)
 
             if monitors:
-                # Prefer the focused monitor.
                 focused = next(
                     (
                         monitor
@@ -67,8 +45,6 @@ def get_screen_size():
                 height = int(focused["height"])
                 scale = float(focused.get("scale", 1))
 
-                # Hyprland reports logical dimensions together with scale.
-                # Convert to the physical pixel dimensions used by PNG.
                 physical_width = round(width )
                 physical_height = round(height )
 
@@ -83,9 +59,6 @@ def get_screen_size():
         ):
             pass
 
-    # --------------------------------------------------------
-    # Linux / X11 / XWayland: xrandr
-    # --------------------------------------------------------
 
     if sys.platform.startswith("linux"):
         try:
@@ -124,9 +97,6 @@ def get_screen_size():
         ):
             pass
 
-        # ----------------------------------------------------
-        # Linux fallback: xdpyinfo
-        # ----------------------------------------------------
 
         try:
             result = subprocess.run(
@@ -154,9 +124,6 @@ def get_screen_size():
         ):
             pass
 
-    # --------------------------------------------------------
-    # Windows
-    # --------------------------------------------------------
 
     if sys.platform.startswith("win"):
         try:
@@ -172,9 +139,6 @@ def get_screen_size():
         except Exception:
             pass
 
-    # --------------------------------------------------------
-    # macOS
-    # --------------------------------------------------------
 
     if sys.platform == "darwin":
         try:
@@ -206,17 +170,12 @@ def get_screen_size():
             pass
 
     raise RuntimeError(
-        "Не удалось автоматически определить разрешение экрана.\n"
-        "Используй --screen WIDTH HEIGHT"
+        "Could not detect the screen resolution automatically.\n"
+        "Use --screen WIDTH HEIGHT"
     )
 
 
-# ============================================================
-# FONT DETECTION
-# ============================================================
-
 def get_monospace_fonts():
-    """Find installed fonts on Linux."""
     fonts = []
 
     if not sys.platform.startswith("linux"):
@@ -254,7 +213,6 @@ def get_monospace_fonts():
     ):
         pass
 
-    # Remove duplicate files.
     unique = []
     seen = set()
 
@@ -263,7 +221,6 @@ def get_monospace_fonts():
             seen.add(path)
             unique.append((family, path))
 
-    # Prefer fonts that are likely monospace.
     preferred_words = (
         "mono",
         "monospace",
@@ -294,7 +251,6 @@ def get_monospace_fonts():
 
 
 def find_default_font():
-    """Find the system monospace font."""
     if sys.platform.startswith("linux"):
         try:
             result = subprocess.run(
@@ -336,12 +292,7 @@ def find_default_font():
     return None
 
 
-# ============================================================
-# IMAGE PROCESSING
-# ============================================================
-
 def crop_to_aspect(image, target_aspect):
-    """Center-crop an image to the target aspect ratio."""
 
     width, height = image.size
     current_aspect = width / height
@@ -350,7 +301,6 @@ def crop_to_aspect(image, target_aspect):
         return image
 
     if current_aspect > target_aspect:
-        # Too wide -> crop left/right.
         new_width = max(
             1,
             round(height * target_aspect),
@@ -367,7 +317,6 @@ def crop_to_aspect(image, target_aspect):
             )
         )
 
-    # Too tall -> crop top/bottom.
     new_height = max(
         1,
         round(width / target_aspect),
@@ -386,7 +335,6 @@ def crop_to_aspect(image, target_aspect):
 
 
 def brightness(r, g, b):
-    """Perceived brightness, 0..255."""
 
     return (
         0.299 * r +
@@ -403,15 +351,11 @@ def load_font(font_path, size):
         )
     except OSError as exc:
         raise RuntimeError(
-            f"Не удалось открыть шрифт:\n"
+            f"Could not open font:\n"
             f"{font_path}\n\n"
             f"{exc}"
         ) from exc
 
-
-# ============================================================
-# ASCII RENDERER
-# ============================================================
 
 def render_ascii(
     image,
@@ -422,30 +366,20 @@ def render_ascii(
     font_path,
     colored,
     color
-    
-):
-    """
-    Convert an image into an ASCII image.
 
-    The final PNG is exactly screen_width x screen_height.
-    Each ASCII character represents an averaged source-image block.
-    """
+):
 
     if rows < 1:
         raise ValueError(
-            "Количество строк должно быть >= 1."
+            "Number of rows must be >= 1."
         )
 
     if not chars:
         raise ValueError(
-            "Набор символов не может быть пустым."
+            "The character set cannot be empty."
         )
 
-    # --------------------------------------------------------
-    # ASCII grid
-    # --------------------------------------------------------
 
-    # Approximate glyph aspect ratio for monospace fonts.
     char_aspect = 0.5
 
     columns = max(
@@ -457,9 +391,6 @@ def render_ascii(
         ),
     )
 
-    # --------------------------------------------------------
-    # Average each source block
-    # --------------------------------------------------------
 
     small = image.resize(
         (columns, rows),
@@ -468,9 +399,6 @@ def render_ascii(
 
     pixels = small.load()
 
-    # --------------------------------------------------------
-    # Full-resolution output
-    # --------------------------------------------------------
 
     output = Image.new(
         "RGB",
@@ -483,9 +411,6 @@ def render_ascii(
 
     draw = ImageDraw.Draw(output)
 
-    # --------------------------------------------------------
-    # Font
-    # --------------------------------------------------------
 
     cell_width = screen_width / columns
     cell_height = screen_height / rows
@@ -500,7 +425,6 @@ def render_ascii(
         font_size,
     )
 
-    # Actual glyph metrics.
     bbox = font.getbbox("M")
 
     glyph_height = max(
@@ -513,9 +437,6 @@ def render_ascii(
         - bbox[1]
     )
 
-    # --------------------------------------------------------
-    # Draw
-    # --------------------------------------------------------
 
     for y in range(rows):
         py = y * cell_height
@@ -566,10 +487,6 @@ def render_ascii(
     return output, columns
 
 
-# ============================================================
-# COMMAND LINE
-# ============================================================
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
@@ -580,54 +497,54 @@ def parse_args():
 
     parser.add_argument(
         "image",
-        help="Путь к исходной картинке.",
+        help="Path to the source image.",
     )
 
     parser.add_argument(
         "-o",
         "--output",
         default="ascii_output.png",
-        help="Путь к выходному PNG.",
+        help="Path to the output PNG.",
     )
 
     parser.add_argument(
         "--mode",
         choices=("color", "mono"),
         default=None,
-        help="Режим: color или mono.",
+        help="Mode: color or mono.",
     )
     parser.add_argument(
         "--color",
         default=None,
-        help="Цвет изображения при mono режиме"
+        help="Image color in mono mode, in the format '(255,255,255)'"
     )
 
     parser.add_argument(
         "--quality",
         choices=tuple(QUALITY_PRESETS),
         default=None,
-        help="Качество ASCII.",
+        help="ASCII quality.",
     )
 
     parser.add_argument(
         "--rows",
         type=int,
         default=None,
-        help="Точное количество строк ASCII.",
+        help="Exact number of ASCII rows.",
     )
 
     parser.add_argument(
         "--chars",
         default=None,
         help=(
-            "Набор символов от тёмного к светлому."
+            "Character set from dark to light."
         ),
     )
 
     parser.add_argument(
         "--font",
         default=None,
-        help="Путь к .ttf/.otf/.ttc.",
+        help="Path to a .ttf/.otf/.ttc font.",
     )
 
     parser.add_argument(
@@ -636,30 +553,23 @@ def parse_args():
         type=int,
         metavar=("WIDTH", "HEIGHT"),
         default=None,
-        help="Ручное разрешение экрана.",
+        help="Manual screen resolution.",
     )
 
     return parser.parse_args()
 
-
-# ============================================================
-# INTERACTIVE SETUP
-# ============================================================
 
 def ask_interactive(args, fonts):
     print()
     print("=== ASCII PNG Generator ===")
     print()
 
-    # --------------------------------------------------------
-    # Mode
-    # --------------------------------------------------------
 
     if args.mode is None:
         while True:
             value = input(
-                "Режим [1 — цветной / "
-                "2 — одноцветный] (1): "
+                "Mode [1 — color / "
+                "2 — monochrome] (1): "
             ).strip()
 
             if value in ("", "1"):
@@ -672,8 +582,8 @@ def ask_interactive(args, fonts):
                             while True:
                                 try:
                                     value = input(
-                                        "Введите цвет в формате (255,255,255)  (по умолчанию генерирует ч/б): "
-                                        
+                                        "Enter a color in the format (255,255,255)  (default: grayscale): "
+
                                     ).strip()[1:-1].split(',')
                                     value = (int(value[0]),int(value[1]),int(value[2]))
                                 except:
@@ -682,28 +592,24 @@ def ask_interactive(args, fonts):
                                 break
                 break
 
-            print("Введите 1 или 2.")
-    
-    
-    # --------------------------------------------------------
-    # Quality
-    # --------------------------------------------------------
+            print("Enter 1 or 2.")
+
 
     if (
         args.rows is None
         and args.quality is None
     ):
         print()
-        print("Качество:")
-        print("1 — низкое    (35 строк)")
-        print("2 — среднее    (60 строк)")
-        print("3 — высокое    (90 строк)")
-        print("4 — ультра    (120 строк)")
-        print("5 — своё количество строк")
+        print("Quality:")
+        print("1 — low       (35 rows)")
+        print("2 — medium    (60 rows)")
+        print("3 — high      (90 rows)")
+        print("4 — ultra     (120 rows)")
+        print("5 — custom number of rows")
 
         while True:
             value = input(
-                "Выбор (2): "
+                "Choice (2): "
             ).strip()
 
             if value in ("", "2"):
@@ -726,7 +632,7 @@ def ask_interactive(args, fonts):
                 try:
                     rows = int(
                         input(
-                            "Количество строк: "
+                            "Number of rows: "
                         ).strip()
                     )
 
@@ -738,27 +644,24 @@ def ask_interactive(args, fonts):
 
                 except ValueError:
                     print(
-                        "Введите целое число больше 0."
+                        "Enter an integer greater than 0."
                     )
                     continue
 
             print(
-                "Введите число от 1 до 5."
+                "Enter a number from 1 to 5."
             )
 
-    # --------------------------------------------------------
-    # Character set
-    # --------------------------------------------------------
 
     if args.chars is None:
         print()
         print(
-            "Набор символов задаётся "
-            "от тёмного к светлому."
+            "The character set is given "
+            "from dark to light."
         )
 
         value = input(
-            f"Символы [{DEFAULT_CHARS}]: "
+            f"Characters [{DEFAULT_CHARS}]: "
         )
 
         args.chars = (
@@ -769,27 +672,24 @@ def ask_interactive(args, fonts):
 
     if not args.chars:
         raise ValueError(
-            "Набор символов не может быть пустым."
+            "The character set cannot be empty."
         )
 
-    # --------------------------------------------------------
-    # Font
-    # --------------------------------------------------------
 
     if args.font is None:
         default_font = find_default_font()
 
         print()
-        print("Шрифт:")
+        print("Font:")
 
         if default_font:
             print(
-                f"По умолчанию: {default_font}"
+                f"Default: {default_font}"
             )
 
         if fonts:
             print(
-                "Найденные шрифты:"
+                "Fonts found:"
             )
 
             for i, (family, path) in enumerate(
@@ -801,8 +701,8 @@ def ask_interactive(args, fonts):
                 )
 
         value = input(
-            "Путь к шрифту "
-            "(Enter = системный): "
+            "Path to font "
+            "(Enter = system default): "
         ).strip()
 
         if value:
@@ -813,19 +713,12 @@ def ask_interactive(args, fonts):
     return args
 
 
-# ============================================================
-# MAIN
-# ============================================================
-
 def main():
     args = parse_args()
-    # --------------------------------------------------------
-    # Source image
-    # --------------------------------------------------------
 
     if not os.path.isfile(args.image):
         print(
-            f"Ошибка: файл не найден: "
+            f"Error: file not found: "
             f"{args.image}"
         )
         return 1
@@ -835,7 +728,6 @@ def main():
             args.image
         )
 
-        # Composite transparent PNGs onto black.
         if "A" in image.getbands():
             rgba = image.convert("RGBA")
 
@@ -860,14 +752,11 @@ def main():
 
     except Exception as exc:
         print(
-            f"Ошибка загрузки изображения: "
+            f"Error loading image: "
             f"{exc}"
         )
         return 1
 
-    # --------------------------------------------------------
-    # Screen
-    # --------------------------------------------------------
 
     try:
         if args.screen:
@@ -881,7 +770,7 @@ def main():
 
     except RuntimeError as exc:
         print(
-            f"Ошибка: {exc}"
+            f"Error: {exc}"
         )
         return 1
 
@@ -890,13 +779,10 @@ def main():
         or screen_height < 1
     ):
         print(
-            "Некорректное разрешение экрана."
+            "Invalid screen resolution."
         )
         return 1
 
-    # --------------------------------------------------------
-    # Fonts
-    # --------------------------------------------------------
 
     fonts = get_monospace_fonts()
 
@@ -906,9 +792,6 @@ def main():
             fonts,
         )
 
-        # ----------------------------------------------------
-        # Rows
-        # ----------------------------------------------------
 
         if args.rows is not None:
             rows = args.rows
@@ -919,32 +802,26 @@ def main():
 
         if rows < 1:
             raise ValueError(
-                "Количество строк должно быть >= 1."
+                "Number of rows must be >= 1."
             )
 
-        # ----------------------------------------------------
-        # Font
-        # ----------------------------------------------------
 
         font_path = args.font
 
         if not font_path:
             raise ValueError(
-                "Не найден моноширинный шрифт.\n"
-                "Укажи его через --font."
+                "No monospace font found.\n"
+                "Specify one with --font."
             )
 
         if not os.path.isfile(
             font_path
         ):
             raise ValueError(
-                "Файл шрифта не найден:\n"
+                "Font file not found:\n"
                 f"{font_path}"
             )
 
-        # ----------------------------------------------------
-        # Crop
-        # ----------------------------------------------------
 
         screen_aspect = (
             screen_width
@@ -958,43 +835,40 @@ def main():
 
         print()
         print(
-            f"Экран: "
+            f"Screen: "
             f"{screen_width} × "
             f"{screen_height}"
         )
 
         print(
-            f"Исходник: "
+            f"Source: "
             f"{image.width} × "
             f"{image.height}"
         )
 
         print(
-            f"После crop: "
+            f"After crop: "
             f"{cropped.width} × "
             f"{cropped.height}"
         )
 
         print(
-            f"Строк: {rows}"
+            f"Rows: {rows}"
         )
 
         print(
-            f"Шрифт: {font_path}"
+            f"Font: {font_path}"
         )
 
         print(
-            "Режим: "
+            "Mode: "
             + (
-                "цветной"
+                "color"
                 if args.mode == "color"
-                else "одноцветный"
+                else "monochrome"
             )
         )
 
-        # ----------------------------------------------------
-        # Render
-        # ----------------------------------------------------
 
         output, columns = render_ascii(
             cropped,
@@ -1007,9 +881,6 @@ def main():
             args.color
         )
 
-        # ----------------------------------------------------
-        # Save
-        # ----------------------------------------------------
 
         output_path = os.path.abspath(
             args.output
@@ -1031,18 +902,18 @@ def main():
         )
 
         print(
-            f"ASCII-сетка: "
+            f"ASCII grid: "
             f"{columns} × {rows}"
         )
 
         print(
-            f"Разрешение PNG: "
+            f"PNG resolution: "
             f"{output.width} × "
             f"{output.height}"
         )
 
         print(
-            f"Готово: {output_path}"
+            f"Done: {output_path}"
         )
 
         return 0
@@ -1054,7 +925,7 @@ def main():
     ) as exc:
         print()
         print(
-            f"Ошибка: {exc}"
+            f"Error: {exc}"
         )
         return 1
 
